@@ -12,12 +12,14 @@ pub struct Feed {
 pub struct AppConfig {
     pub feeds: Vec<Feed>,
     pub open_command: Option<String>,
+    pub header: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct RuntimeConfig {
     pub feeds: Vec<Feed>,
     pub open_command: Option<String>,
+    pub header: Option<String>,
 }
 
 pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
@@ -35,6 +37,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
                 return Ok(RuntimeConfig {
                     feeds: parsed.feeds,
                     open_command: parsed.open_command,
+                    header: parsed.header,
                 });
             } else {
                 let name = p
@@ -48,6 +51,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
                         url: path_str,
                     }],
                     open_command: None,
+                    header: None,
                 });
             }
         } else {
@@ -59,6 +63,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
                         url: path_str,
                     }],
                     open_command: None,
+                    header: None,
                 });
             }
         }
@@ -74,6 +79,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
             return Ok(RuntimeConfig {
                 feeds: parsed.feeds,
                 open_command: parsed.open_command,
+                header: parsed.header,
             });
         }
     }
@@ -91,6 +97,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
             },
         ],
         open_command: None,
+        header: None,
     })
 }
 

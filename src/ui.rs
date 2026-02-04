@@ -7,8 +7,20 @@ pub enum MenuChoice {
     Index(usize),
 }
 
-pub fn prompt_menu(prompt: &str, items: &[&str], default: Option<usize>) -> Result<MenuChoice> {
-    // Render menu
+pub fn prompt_menu(
+    prompt: &str,
+    items: &[&str],
+    default: Option<usize>,
+    header: Option<&str>,
+) -> Result<MenuChoice> {
+    // Clear on menu entry
+    let term = Term::stdout();
+    let _ = term.clear_screen();
+
+    // Render initial view
+    if let Some(h) = header {
+        println!("{}", h);
+    }
     println!("{}", prompt);
     for (i, it) in items.iter().enumerate() {
         println!("{}: {}", i + 1, it);
@@ -16,11 +28,10 @@ pub fn prompt_menu(prompt: &str, items: &[&str], default: Option<usize>) -> Resu
     println!("Type a number + Enter, or use arrow keys + Enter. 'b' = back, 'q' = quit.");
 
     // First key decides input mode: arrow-navigation vs text input
-    let term = Term::stdout();
     let key = term.read_key()?;
     match key {
         Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End | Key::PageUp | Key::PageDown => {
-            return arrow_select(prompt, items, default);
+            return arrow_select(prompt, items, default, header, None);
         }
         Key::Char('q') | Key::Char('Q') | Key::Char('b') | Key::Char('B') => {
             return Ok(MenuChoice::Back);
@@ -54,18 +65,28 @@ pub fn prompt_menu(prompt: &str, items: &[&str], default: Option<usize>) -> Resu
     }
 }
 
-pub fn prompt_index(prompt: &str, labels: &[String], default: Option<usize>) -> Result<MenuChoice> {
+pub fn prompt_index(
+    prompt: &str,
+    labels: &[String],
+    default: Option<usize>,
+    header: Option<&str>,
+    header_indices: Option<&[usize]>,
+) -> Result<MenuChoice> {
+    let term = Term::stdout();
+    let _ = term.clear_screen();
+    if let Some(h) = header {
+        println!("{}", h);
+    }
     println!("{}", prompt);
     for (i, it) in labels.iter().enumerate() {
         println!("{}: {}", i + 1, it);
     }
-    println!("Type a number + Enter, or use arrow keys + Enter. 'b' = back, 'q' = quit.");
+    println!("Type a number + Enter, or use arrow keys + Enter. 'b' = back, 'q' = quit. Tab = next section");
 
-    let term = Term::stdout();
     let key = term.read_key()?;
     match key {
         Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End | Key::PageUp | Key::PageDown => {
-            return arrow_select_ref(prompt, labels, default);
+            return arrow_select_ref(prompt, labels, default, header, header_indices);
         }
         Key::Char('q') | Key::Char('Q') | Key::Char('b') | Key::Char('B') => {
             return Ok(MenuChoice::Back);
@@ -123,21 +144,53 @@ fn parse_selection(input: &str, items: &[&str], default: Option<usize>) -> Resul
     Ok(MenuChoice::Index(idx - 1))
 }
 
-fn arrow_select(prompt: &str, items: &[&str], default: Option<usize>) -> Result<MenuChoice> {
+fn arrow_select(
+    prompt: &str,
+    items: &[&str],
+    default: Option<usize>,
+    header: Option<&str>,
+    header_indices: Option<&[usize]>,
+) -> Result<MenuChoice> {
     let term = Term::stdout();
     let mut sel = default.unwrap_or(0).min(items.len().saturating_sub(1));
-    // Redraw loop
+    let mut top: usize = 0;
     loop {
         term.clear_screen()?;
+        if let Some(h) = header {
+            println!("{}", h);
+        }
         println!("{}", prompt);
-        for (i, it) in items.iter().enumerate() {
+
+        let (rows_u16, _cols_u16) = term.size();
+        let rows: usize = rows_u16 as usize;
+        let reserved: usize = 2 + if header.is_some() { 1 } else { 0 }; // header + prompt + help
+        let mut max_visible: usize = rows.saturating_sub(reserved);
+        if max_visible < 3 {
+            max_visible = 3;
+        }
+        if max_visible > items.len() {
+            max_visible = items.len();
+        }
+
+        // keep selection in viewport
+        if sel < top {
+            top = sel;
+        }
+        let end = top + max_visible;
+        if sel >= end {
+            top = sel + 1 - max_visible;
+        }
+
+        let end = (top + max_visible).min(items.len());
+        for i in top..end {
             if i == sel {
-                println!("> {}: {}", i + 1, it);
+                println!("> {}: {}", i + 1, items[i]);
             } else {
-                println!("  {}: {}", i + 1, it);
+                println!("  {}: {}", i + 1, items[i]);
             }
         }
-        println!("Use arrows + Enter. 'b' = back, 'q' = quit.");
+        println!("Use arrows + Enter. 'b' = back, 'q' = quit. Tab = next section");
+
         match term.read_key()? {
             Key::ArrowUp => {
                 if sel > 0 {
@@ -158,10 +211,27 @@ fn arrow_select(prompt: &str, items: &[&str], default: Option<usize>) -> Result<
                 }
             }
             Key::PageUp => {
-                sel = sel.saturating_sub(5);
+                let step: usize = max_visible.saturating_sub(1).max(1);
+                sel = sel.saturating_sub(step);
             }
             Key::PageDown => {
-                sel = (sel + 5).min(items.len().saturating_sub(1));
+                let step: usize = max_visible.saturating_sub(1).max(1);
+                sel = (sel + step).min(items.len().saturating_sub(1));
+            }
+            Key::Tab => {
+                if let Some(hidx) = header_indices {
+                    if !hidx.is_empty() {
+                        // find first header strictly greater than sel
+                        let mut next = hidx[0];
+                        for &idx in hidx {
+                            if idx > sel {
+                                next = idx;
+                                break;
+                            }
+                        }
+                        sel = next.min(items.len().saturating_sub(1));
+                    }
+                }
             }
             Key::Enter => {
                 return Ok(MenuChoice::Index(sel));
@@ -174,7 +244,13 @@ fn arrow_select(prompt: &str, items: &[&str], default: Option<usize>) -> Result<
     }
 }
 
-fn arrow_select_ref(prompt: &str, labels: &[String], default: Option<usize>) -> Result<MenuChoice> {
+fn arrow_select_ref(
+    prompt: &str,
+    labels: &[String],
+    default: Option<usize>,
+    header: Option<&str>,
+    header_indices: Option<&[usize]>,
+) -> Result<MenuChoice> {
     let items: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
-    arrow_select(prompt, &items, default)
+    arrow_select(prompt, &items, default, header, header_indices)
 }

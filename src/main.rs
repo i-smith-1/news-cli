@@ -2,6 +2,7 @@ mod config;
 mod news;
 mod open_url;
 mod ui;
+mod util;
 
 use anyhow::Result;
 use std::env;
@@ -31,7 +32,12 @@ async fn main() -> Result<()> {
 
     loop {
         let items = vec!["News", "Quit"];
-        let sel = ui::prompt_menu("Main Menu (b = back/quit)", &items, Some(0))?;
+        let sel = ui::prompt_menu(
+            "Main Menu (b = back/quit)",
+            &items,
+            Some(0),
+            cfg.header.as_deref(),
+        )?;
         match sel {
             ui::MenuChoice::Back => break,
             ui::MenuChoice::Index(0) => news::run(&cfg).await?,
