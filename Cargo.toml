@@ -1,0 +1,16 @@
+[package]
+name = "news-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+dialoguer = "0.11"
+feed-rs = "1"
+open = "5"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+toml = "0.8"
+time = { version = "0.3", features = ["parsing", "formatting", "macros", "serde"] }
+console = "0.15"
