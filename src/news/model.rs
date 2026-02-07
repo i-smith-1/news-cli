@@ -5,4 +5,6 @@ pub struct Story {
     pub title: String,
     pub link: String,
     pub source: String,
+    #[serde(default)]
+    pub is_new: bool,
 }

@@ -1,4 +1,5 @@
 mod config;
+mod history;
 mod news;
 mod open_url;
 mod ui;
@@ -29,6 +30,7 @@ async fn main() -> Result<()> {
     }
 
     let cfg = config::load(feeds_override)?;
+    let mut history = history::SeenStories::load();
 
     loop {
         let items = vec!["News", "Quit"];
@@ -40,10 +42,21 @@ async fn main() -> Result<()> {
         )?;
         match sel {
             ui::MenuChoice::Back => break,
-            ui::MenuChoice::Index(0) => news::run(&cfg).await?,
+            ui::MenuChoice::Index(0) => {
+                let story_links = news::run(&cfg, &history).await?;
+                // Mark all fetched stories as seen
+                for link in story_links {
+                    history.mark_as_seen(&link);
+                }
+            }
             ui::MenuChoice::Index(1) => break,
             _ => {}
         }
+    }
+
+    // Save history on clean exit
+    if let Err(e) = history.save() {
+        eprintln!("Failed to save history: {}", e);
     }
 
     Ok(())

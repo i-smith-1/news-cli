@@ -2,16 +2,23 @@ mod fetch;
 mod model;
 
 use crate::config::RuntimeConfig;
+use crate::history::SeenStories;
 use crate::open_url::open_url;
 use crate::ui::{prompt_index, MenuChoice};
 use crate::util::sanitize::sanitize_for_terminal;
 use anyhow::Result;
-// no extra imports here
+use console;
 
-pub async fn run(cfg: &RuntimeConfig) -> Result<()> {
+pub async fn run(cfg: &RuntimeConfig, history: &SeenStories) -> Result<Vec<String>> {
     // Initial fetch
-    let stories = fetch::collect_stories(&cfg.feeds).await?;
-    news_menu(cfg, stories).await
+    let stories = fetch::collect_stories(&cfg.feeds, history).await?;
+    
+    // Collect all story links for later marking as seen
+    let story_links: Vec<String> = stories.iter().map(|s| s.link.clone()).collect();
+    
+    news_menu(cfg, stories).await?;
+    
+    Ok(story_links)
 }
 
 async fn news_menu(cfg: &RuntimeConfig, stories: Vec<model::Story>) -> Result<()> {
@@ -40,7 +47,12 @@ async fn news_menu(cfg: &RuntimeConfig, stories: Vec<model::Story>) -> Result<()
             let show = items.iter().take(10);
             for (idx, it) in show.enumerate() {
                 let safe_title = sanitize_for_terminal(&it.title);
-                labels.push(format!("  - {}", safe_title));
+                let label = if it.is_new {
+                    format!("  - {} {}", console::style("[NEW]").green().bold(), safe_title)
+                } else {
+                    format!("  - {}", safe_title)
+                };
+                labels.push(label);
                 index_map.push(Item::Story(source.clone(), idx));
             }
         }
@@ -56,7 +68,12 @@ async fn news_menu(cfg: &RuntimeConfig, stories: Vec<model::Story>) -> Result<()
         index_map.push(Item::Header(source.clone()));
         for (idx, it) in items.iter().take(10).enumerate() {
             let safe_title = sanitize_for_terminal(&it.title);
-            labels.push(format!("  - {}", safe_title));
+            let label = if it.is_new {
+                format!("  - {} {}", console::style("[NEW]").green().bold(), safe_title)
+            } else {
+                format!("  - {}", safe_title)
+            };
+            labels.push(label);
             index_map.push(Item::Story(source.clone(), idx));
         }
     }
@@ -91,7 +108,12 @@ async fn source_menu(global_header: Option<&str>, source: &str, entries: &[model
     let mut labels: Vec<String> = Vec::new();
     for e in entries {
         let safe_title = sanitize_for_terminal(&e.title);
-        labels.push(safe_title);
+        let label = if e.is_new {
+            format!("{} {}", console::style("[NEW]").green().bold(), safe_title)
+        } else {
+            safe_title
+        };
+        labels.push(label);
     }
     loop {
         match prompt_index(

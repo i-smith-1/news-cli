@@ -1,5 +1,6 @@
 use super::model::Story;
 use crate::config::Feed;
+use crate::history::SeenStories;
 use anyhow::Result;
 use feed_rs::parser;
 use futures_util::StreamExt;
@@ -7,7 +8,7 @@ use reqwest::Client;
 use std::{fs, path::Path, time::Duration};
 use url::Url;
 
-pub async fn collect_stories(feeds: &[Feed]) -> Result<Vec<Story>> {
+pub async fn collect_stories(feeds: &[Feed], history: &SeenStories) -> Result<Vec<Story>> {
     let client = Client::builder()
         .user_agent("news-cli/0.1")
         .gzip(true)
@@ -29,7 +30,7 @@ pub async fn collect_stories(feeds: &[Feed]) -> Result<Vec<Story>> {
                         continue;
                     }
                     match parser::parse(&bytes[..]) {
-                        Ok(feed) => push_entries(&mut all, feed, &source_name, None),
+                        Ok(feed) => push_entries(&mut all, feed, &source_name, None, history),
                         Err(err) => eprintln!("Failed to parse feed {}: {}", f.url, err),
                     }
                 }
@@ -65,7 +66,7 @@ pub async fn collect_stories(feeds: &[Feed]) -> Result<Vec<Story>> {
                     }
                     if buf.is_empty() { continue; }
                     match parser::parse(&buf[..]) {
-                        Ok(feed) => push_entries(&mut all, feed, &source_name, base.as_ref()),
+                        Ok(feed) => push_entries(&mut all, feed, &source_name, base.as_ref(), history),
                         Err(err) => eprintln!("Failed to parse feed {}: {}", f.url, err),
                     }
                 }
@@ -86,6 +87,7 @@ fn push_entries(
     feed: feed_rs::model::Feed,
     fallback_source: &str,
     base: Option<&Url>,
+    history: &SeenStories,
 ) {
     // Standardize source label to the configured feed name (fallback_source)
     // so ordering and labels match the configuration.
@@ -106,7 +108,13 @@ fn push_entries(
             .unwrap_or_else(|| String::from(""));
 
         if let Some(normalized) = normalize_link(&raw_link, base) {
-            all.push(Story { title, link: normalized, source: source.clone() });
+            let is_new = !history.is_seen(&normalized);
+            all.push(Story { 
+                title, 
+                link: normalized, 
+                source: source.clone(),
+                is_new,
+            });
         }
     }
 }
