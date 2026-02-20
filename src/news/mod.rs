@@ -9,24 +9,35 @@ use crate::util::sanitize::sanitize_for_terminal;
 use anyhow::Result;
 use console;
 
-pub async fn run(cfg: &RuntimeConfig, history: &SeenStories) -> Result<Vec<String>> {
+/// Returns the list of story links seen, and a bool indicating whether the user quit.
+pub async fn run(cfg: &RuntimeConfig, history: &SeenStories) -> Result<(Vec<String>, bool)> {
     // Initial fetch
     let stories = fetch::collect_stories(&cfg.feeds, history).await?;
     
     // Collect all story links for later marking as seen
     let story_links: Vec<String> = stories.iter().map(|s| s.link.clone()).collect();
     
-    news_menu(cfg, stories).await?;
+    let quit = news_menu(cfg, stories).await?;
     
-    Ok(story_links)
+    Ok((story_links, quit))
 }
 
-async fn news_menu(cfg: &RuntimeConfig, stories: Vec<model::Story>) -> Result<()> {
+/// Returns `true` if the user quit (so the caller can propagate the quit upward).
+async fn news_menu(cfg: &RuntimeConfig, stories: Vec<model::Story>) -> Result<bool> {
     use std::collections::{HashMap, HashSet};
     // Group stories by source
     let mut by_source: HashMap<String, Vec<model::Story>> = HashMap::new();
     for s in stories {
         by_source.entry(s.source.clone()).or_default().push(s);
+    }
+    // Sort each source by most recent first (fallback: keep original order)
+    for (_src, vecs) in by_source.iter_mut() {
+        vecs.sort_by(|a, b| match (a.published, b.published) {
+            (Some(da), Some(db)) => db.cmp(&da), // newest first
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        });
     }
     // Build a flat list following config feed order
     let mut labels: Vec<String> = Vec::new();
@@ -87,10 +98,15 @@ async fn news_menu(cfg: &RuntimeConfig, stories: Vec<model::Story>) -> Result<()
             Some(&header_indices),
         )? {
             MenuChoice::Back => break,
+            MenuChoice::Quit => return Ok(true),
             MenuChoice::Index(i) => {
                 match &index_map[i] {
                     Item::Header(source) => {
-                        if let Some(v) = by_source.get(source) { source_menu(cfg.header.as_deref(), source, v).await?; }
+                        if let Some(v) = by_source.get(source) {
+                            if source_menu(cfg.header.as_deref(), source, v).await? {
+                                return Ok(true);
+                            }
+                        }
                     }
                     Item::Story(source, idx) => {
                         if let Some(v) = by_source.get(source) {
@@ -101,10 +117,11 @@ async fn news_menu(cfg: &RuntimeConfig, stories: Vec<model::Story>) -> Result<()
             }
         }
     }
-    Ok(())
+    Ok(false)
 }
 
-async fn source_menu(global_header: Option<&str>, source: &str, entries: &[model::Story]) -> Result<()> {
+/// Returns `true` if the user quit (so the caller can propagate the quit upward).
+async fn source_menu(global_header: Option<&str>, source: &str, entries: &[model::Story]) -> Result<bool> {
     let mut labels: Vec<String> = Vec::new();
     for e in entries {
         let safe_title = sanitize_for_terminal(&e.title);
@@ -124,12 +141,13 @@ async fn source_menu(global_header: Option<&str>, source: &str, entries: &[model
             None,
         )? {
             MenuChoice::Back => break,
+            MenuChoice::Quit => return Ok(true),
             MenuChoice::Index(i) => {
                 if let Some(st) = entries.get(i) { let _ = open_url(&st.link); }
             }
         }
     }
-    Ok(())
+    Ok(false)
 }
 
 pub use model::Story;

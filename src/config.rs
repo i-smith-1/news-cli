@@ -13,6 +13,7 @@ pub struct AppConfig {
     pub feeds: Vec<Feed>,
     pub open_command: Option<String>,
     pub header: Option<String>,
+    pub stats: Option<StatsConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,17 @@ pub struct RuntimeConfig {
     pub feeds: Vec<Feed>,
     pub open_command: Option<String>,
     pub header: Option<String>,
+    pub stats: StatsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct StatsConfig {
+    // StatsCan vector id for population (Canada total, quarterly)
+    pub statscan_population_vector: Option<String>,
+    // StatsCan/CMHC housing starts vector id (monthly), will fetch last 4 months
+    pub housing_starts_vector: Option<String>,
+    // Optional override for BoC yield curve series: map label->series id
+    pub boc_yield_series: Option<std::collections::HashMap<String, String>>,
 }
 
 pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
@@ -38,6 +50,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
                     feeds: parsed.feeds,
                     open_command: parsed.open_command,
                     header: parsed.header,
+                    stats: parsed.stats.unwrap_or_default(),
                 });
             } else {
                 let name = p
@@ -52,6 +65,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
                     }],
                     open_command: None,
                     header: None,
+                    stats: StatsConfig::default(),
                 });
             }
         } else {
@@ -64,6 +78,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
                     }],
                     open_command: None,
                     header: None,
+                    stats: StatsConfig::default(),
                 });
             }
         }
@@ -80,6 +95,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
                 feeds: parsed.feeds,
                 open_command: parsed.open_command,
                 header: parsed.header,
+                stats: parsed.stats.unwrap_or_default(),
             });
         }
     }
@@ -98,6 +114,7 @@ pub fn load(feeds_override: Option<String>) -> Result<RuntimeConfig> {
         ],
         open_command: None,
         header: None,
+        stats: StatsConfig::default(),
     })
 }
 

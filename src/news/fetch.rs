@@ -108,12 +108,18 @@ fn push_entries(
             .unwrap_or_else(|| String::from(""));
 
         if let Some(normalized) = normalize_link(&raw_link, base) {
+            // Prefer published, fallback to updated; store as UNIX epoch seconds
+            let when: Option<i64> = entry
+                .published
+                .map(|d| d.timestamp())
+                .or_else(|| entry.updated.map(|d| d.timestamp()));
             let is_new = !history.is_seen(&normalized);
             all.push(Story { 
                 title, 
                 link: normalized, 
                 source: source.clone(),
                 is_new,
+                published: when,
             });
         }
     }

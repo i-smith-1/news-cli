@@ -7,4 +7,6 @@ pub struct Story {
     pub source: String,
     #[serde(default)]
     pub is_new: bool,
+    #[serde(default)]
+    pub published: Option<i64>,
 }

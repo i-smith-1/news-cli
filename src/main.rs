@@ -1,6 +1,7 @@
 mod config;
 mod history;
 mod news;
+mod stats;
 mod open_url;
 mod ui;
 mod util;
@@ -33,7 +34,7 @@ async fn main() -> Result<()> {
     let mut history = history::SeenStories::load();
 
     loop {
-        let items = vec!["News", "Quit"];
+        let items = vec!["News", "Stats", "Quit"];
         let sel = ui::prompt_menu(
             "Main Menu (b = back/quit)",
             &items,
@@ -41,15 +42,20 @@ async fn main() -> Result<()> {
             cfg.header.as_deref(),
         )?;
         match sel {
+            ui::MenuChoice::Quit => break,
             ui::MenuChoice::Back => break,
             ui::MenuChoice::Index(0) => {
-                let story_links = news::run(&cfg, &history).await?;
+                let (story_links, quit) = news::run(&cfg, &history).await?;
                 // Mark all fetched stories as seen
                 for link in story_links {
                     history.mark_as_seen(&link);
                 }
+                if quit { break; }
             }
-            ui::MenuChoice::Index(1) => break,
+            ui::MenuChoice::Index(1) => {
+                stats::run(&cfg).await?;
+            }
+            ui::MenuChoice::Index(2) => break,
             _ => {}
         }
     }

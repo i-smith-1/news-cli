@@ -4,6 +4,7 @@ use dialoguer::Input;
 
 pub enum MenuChoice {
     Back,
+    Quit,
     Index(usize),
 }
 
@@ -33,7 +34,10 @@ pub fn prompt_menu(
         Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End | Key::PageUp | Key::PageDown => {
             return arrow_select(prompt, items, default, header, None);
         }
-        Key::Char('q') | Key::Char('Q') | Key::Char('b') | Key::Char('B') => {
+        Key::Char('q') | Key::Char('Q') => {
+            return Ok(MenuChoice::Quit);
+        }
+        Key::Char('b') | Key::Char('B') => {
             return Ok(MenuChoice::Back);
         }
         Key::Enter => {
@@ -88,7 +92,10 @@ pub fn prompt_index(
         Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End | Key::PageUp | Key::PageDown => {
             return arrow_select_ref(prompt, labels, default, header, header_indices);
         }
-        Key::Char('q') | Key::Char('Q') | Key::Char('b') | Key::Char('B') => {
+        Key::Char('q') | Key::Char('Q') => {
+            return Ok(MenuChoice::Quit);
+        }
+        Key::Char('b') | Key::Char('B') => {
             return Ok(MenuChoice::Back);
         }
         Key::Enter => {
@@ -132,7 +139,10 @@ fn parse_selection(input: &str, items: &[&str], default: Option<usize>) -> Resul
         }
         return Err(anyhow!("no selection"));
     }
-    if s.eq_ignore_ascii_case("b") || s.eq_ignore_ascii_case("q") {
+    if s.eq_ignore_ascii_case("q") {
+        return Ok(MenuChoice::Quit);
+    }
+    if s.eq_ignore_ascii_case("b") {
         return Ok(MenuChoice::Back);
     }
     let idx: usize = s
@@ -236,7 +246,10 @@ fn arrow_select(
             Key::Enter => {
                 return Ok(MenuChoice::Index(sel));
             }
-            Key::Char('b') | Key::Char('B') | Key::Char('q') | Key::Char('Q') | Key::Escape => {
+            Key::Char('q') | Key::Char('Q') => {
+                return Ok(MenuChoice::Quit);
+            }
+            Key::Char('b') | Key::Char('B') | Key::Escape => {
                 return Ok(MenuChoice::Back);
             }
             _ => {}
